@@ -38,7 +38,12 @@
       dup_item: 'That item already exists.',
       nothing_to_undo: 'Nothing to undo.',
       close: 'Close',
-      per_unit: '₹{price} each'
+      per_unit: '₹{price} each',
+      close_the_day: 'Close the day',
+      settings: 'Settings',
+      back: 'Back',
+      gear_aria: 'Edit items',
+      back_aria: 'Back to main screen'
     },
     te: {
       app_title: 'టాలీ కౌంటర్',
@@ -72,7 +77,12 @@
       dup_item: 'ఆ వస్తువు ఇప్పటికే ఉంది.',
       nothing_to_undo: 'తీసివేయడానికి ఏమీ లేదు.',
       close: 'మూయి',
-      per_unit: '₹{price} ఒకటి'
+      per_unit: '₹{price} ఒకటి',
+      close_the_day: 'రోజు మూసేయి',
+      settings: 'సెట్టింగ్‌లు',
+      back: 'వెనుకకు',
+      gear_aria: 'వస్తువులు సవరించండి',
+      back_aria: 'మెయిన్ స్క్రీన్‌కు వెళ్ళండి'
     }
   };
 

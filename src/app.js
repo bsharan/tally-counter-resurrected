@@ -1,6 +1,6 @@
 // src/app.js
-// UI wiring, offline storage (localStorage), day rollover, and service
-// worker registration for Tally Counter, Resurrected.
+// UI wiring, offline storage (localStorage), day rollover, view switching,
+// and service worker registration for Tally Counter, Resurrected.
 // No AI, no backend — that comes in spec 2.
 
 (function () {
@@ -20,7 +20,7 @@
     items: [],
     saleLog: [],
     day: '',
-    lang: 'te'
+    lang: 'en' // English is the default; Telugu stays behind the toggle
   };
 
   // ---------- storage helpers (every access in try/catch) ----------
@@ -47,8 +47,8 @@
   // ---------- load / persist ----------
 
   function loadState() {
-    state.lang = storeGet(K_LANG, 'te');
-    if (state.lang !== 'te' && state.lang !== 'en') state.lang = 'te';
+    state.lang = storeGet(K_LANG, 'en');
+    if (state.lang !== 'te' && state.lang !== 'en') state.lang = 'en';
 
     var savedItems = storeGet(K_ITEMS, null);
     state.items = L.validateItems(savedItems);
@@ -71,11 +71,20 @@
 
   function persistItems() { storeSet(K_ITEMS, state.items); }
   function persistSales() { storeSet(K_SALES, state.saleLog); }
-  function persistDay() { storeSet(K_DAY, state.day); }
   function persistLang() { storeSet(K_LANG, state.lang); }
 
   // ---------- element refs ----------
   function el(id) { return document.getElementById(id); }
+
+  // ---------- view switching ----------
+
+  function showView(name) {
+    el('view-main').hidden = name !== 'main';
+    el('view-nightcheck').hidden = name !== 'nightcheck';
+    el('view-settings').hidden = name !== 'settings';
+    // scroll to top when switching views
+    window.scrollTo(0, 0);
+  }
 
   // ---------- rendering ----------
 
@@ -83,23 +92,36 @@
 
   function renderStatic() {
     document.documentElement.lang = state.lang;
+
+    // header
     el('title').textContent = t('app_title');
     el('subtitle').textContent = t('app_subtitle');
-    el('langToggle').textContent = state.lang === 'te' ? 'EN' : 'తె';
-    el('langToggle').setAttribute('aria-label', state.lang === 'te' ? 'Switch to English' : 'తెలుగుకు మార్చండి');
+    el('langToggle').textContent = state.lang === 'en' ? 'తె' : 'EN';
+    el('langToggle').setAttribute('aria-label',
+      state.lang === 'en' ? 'తెలుగుకు మార్చండి' : 'Switch to English');
+    el('gearBtn').setAttribute('aria-label', t('gear_aria'));
 
+    // main view
     el('expectedLabel').textContent = t('expected_cash');
-    el('itemsHeading').textContent = t('items');
+    el('itemGrid').setAttribute('aria-label', t('items'));
     el('undoBtn').textContent = t('undo_last');
-    el('clearBtn').textContent = t('clear_day');
-    el('editToggle').textContent = t('edit_items');
-    el('addItemBtn').textContent = t('add_item');
-    el('newItemName').placeholder = t('item_name_ph');
-    el('newItemPrice').placeholder = t('item_price_ph');
+    el('closeDayBtn').textContent = t('close_the_day');
+
+    // night check view
     el('nightCheckTitle').textContent = t('night_check');
     el('upiLabel').textContent = t('upi_total');
     el('cashLabel').textContent = t('cash_in_box');
     el('checkBtn').textContent = t('check');
+    el('nightBackBtn').textContent = t('back');
+    el('nightBackBtn').setAttribute('aria-label', t('back_aria'));
+
+    // settings view
+    el('settingsTitle').textContent = t('settings');
+    el('addItemBtn').textContent = t('add_item');
+    el('newItemName').placeholder = t('item_name_ph');
+    el('newItemPrice').placeholder = t('item_price_ph');
+    el('settingsBackBtn').textContent = t('back');
+    el('settingsBackBtn').setAttribute('aria-label', t('back_aria'));
   }
 
   function renderItemGrid() {
@@ -156,13 +178,13 @@
       row.className = 'edit-row';
 
       var nameInput = document.createElement('input');
-      nameInput.className = 'input';
+      nameInput.className = 'e-name';
       nameInput.type = 'text';
       nameInput.value = item.name;
       nameInput.setAttribute('aria-label', t('item_name_ph'));
 
       var priceInput = document.createElement('input');
-      priceInput.className = 'input input-price';
+      priceInput.className = 'e-price';
       priceInput.type = 'number';
       priceInput.min = '0';
       priceInput.step = '1';
@@ -173,35 +195,39 @@
       removeBtn.className = 'remove-btn';
       removeBtn.type = 'button';
       removeBtn.textContent = t('remove');
+      removeBtn.setAttribute('aria-label', t('remove') + ' ' + item.name);
 
-      // Save name on change
+      // Save name on change — use renameItem so counts follow, prices stay frozen
       nameInput.addEventListener('change', function () {
-        var v = L.validateItem({ name: nameInput.value, price: priceInput.value });
-        if (!v) { nameInput.value = state.items[index].name; return; }
-        // rename: also rename in the sale log so counts follow
         var oldName = state.items[index].name;
-        state.items[index] = { name: v.name, price: v.price };
-        if (oldName !== v.name) {
-          state.saleLog = state.saleLog.map(function (c) {
-            return c.name === oldName ? { name: v.name, ts: c.ts } : c;
-          });
-          persistSales();
+        if (nameInput.value.trim() === oldName) return; // no change
+        var r = L.renameItem(state.items, state.saleLog, oldName, nameInput.value);
+        if (r.items === state.items) {
+          // rename rejected (invalid or duplicate) — revert input
+          nameInput.value = oldName;
+          return;
         }
+        state.items = r.items;
+        state.saleLog = r.saleLog;
         persistItems();
+        persistSales();
         renderAll();
       });
 
-      // Save price on change
+      // Save price on change — only edits the item, never touches past clicks
       priceInput.addEventListener('change', function () {
         var v = L.validateItem({ name: nameInput.value, price: priceInput.value });
-        if (!v || v.price < 0) { priceInput.value = state.items[index].price; return; }
+        if (!v || v.price < 0) {
+          priceInput.value = state.items[index].price;
+          return;
+        }
         state.items[index].price = v.price;
         persistItems();
         renderAll();
       });
 
       removeBtn.addEventListener('click', function () {
-        removeItem(index);
+        onRemoveItem(index);
       });
 
       row.appendChild(nameInput);
@@ -227,23 +253,24 @@
     var grid = document.createElement('div');
     grid.className = 'verdict-grid';
 
-    function row(label, val) {
+    function vrow(label, val) {
       var r = document.createElement('div');
-      r.className = 'row';
+      r.className = 'vrow';
       var l = document.createElement('span');
-      l.className = 'label';
+      l.className = 'vlabel';
       l.textContent = label;
       var v = document.createElement('span');
-      v.className = 'val';
+      v.className = 'vval';
       v.textContent = val;
       r.appendChild(l);
       r.appendChild(v);
       return r;
     }
 
-    grid.appendChild(row(t('expected'), I.money(state.lang, verdict.expected)));
-    grid.appendChild(row(t('received'), I.money(state.lang, verdict.received)));
-    grid.appendChild(row(t('gap'), (verdict.gap < 0 ? '-' : verdict.gap > 0 ? '+' : '') + I.money(state.lang, Math.abs(verdict.gap))));
+    grid.appendChild(vrow(t('expected'), I.money(state.lang, verdict.expected)));
+    grid.appendChild(vrow(t('received'), I.money(state.lang, verdict.received)));
+    grid.appendChild(vrow(t('gap'),
+      (verdict.gap < 0 ? '-' : verdict.gap > 0 ? '+' : '') + I.money(state.lang, Math.abs(verdict.gap))));
     box.appendChild(grid);
   }
 
@@ -277,22 +304,19 @@
     renderItemGrid();
     renderExpected();
     renderSummary();
-    // hide any stale verdict so the owner isn't misled after undoing
-    el('verdictDisplay').hidden = true;
   }
 
-  function onClear() {
-    if (state.saleLog.length === 0) return;
-    if (!window.confirm(t('clear_confirm'))) return;
-    state.saleLog = L.clearLog();
-    persistSales();
+  function onCloseDay() {
+    // hide any stale verdict from a previous check
     el('verdictDisplay').hidden = true;
-    renderAll();
+    showView('nightcheck');
   }
 
-  function toggleEdit() {
-    var panel = el('editPanel');
-    panel.hidden = !panel.hidden;
+  function onCheck() {
+    var upi = el('upiTotal').value;
+    var cash = el('cashTotal').value;
+    var verdict = L.gapVerdict(state.saleLog, state.items, upi, cash);
+    renderVerdict(verdict);
   }
 
   function onAddItem(e) {
@@ -304,7 +328,6 @@
       flashError(t('invalid_item'));
       return;
     }
-    // check duplicate
     var exists = state.items.some(function (i) { return i.name === v.name; });
     if (exists) {
       flashError(t('dup_item'));
@@ -319,30 +342,20 @@
   }
 
   function compareItems(a, b) {
-    // keep a stable, readable order: by name, case-insensitive
     var an = a.name.toLowerCase();
     var bn = b.name.toLowerCase();
     return an < bn ? -1 : an > bn ? 1 : 0;
   }
 
-  function removeItem(index) {
-    state.items.splice(index, 1);
-    if (state.items.length === 0) {
-      state.items = L.defaultItems();
-    }
+  // Uses the new removeItem helper — clicks stay with their stored prices
+  function onRemoveItem(index) {
+    state.items = L.removeItem(state.items, index);
     persistItems();
     renderAll();
   }
 
-  function onCheck() {
-    var upi = el('upiTotal').value;
-    var cash = el('cashTotal').value;
-    var verdict = L.gapVerdict(state.saleLog, state.items, upi, cash);
-    renderVerdict(verdict);
-  }
-
   function toggleLang() {
-    state.lang = state.lang === 'te' ? 'en' : 'te';
+    state.lang = state.lang === 'en' ? 'te' : 'en';
     persistLang();
     renderAll();
     // re-render verdict if visible so labels switch language
@@ -359,7 +372,6 @@
     if (existing) existing.remove();
     var span = document.createElement('span');
     span.className = 'flash-err';
-    span.style.cssText = 'flex-basis:100%;color:var(--short);font-size:0.85rem;';
     span.textContent = msg;
     form.appendChild(span);
     if (flashTimer) clearTimeout(flashTimer);
@@ -381,13 +393,23 @@
   function init() {
     loadState();
     renderAll();
+    showView('main');
 
+    // header
+    el('gearBtn').addEventListener('click', function () { showView('settings'); });
     el('langToggle').addEventListener('click', toggleLang);
+
+    // main view
     el('undoBtn').addEventListener('click', onUndo);
-    el('clearBtn').addEventListener('click', onClear);
-    el('editToggle').addEventListener('click', toggleEdit);
-    el('addItemForm').addEventListener('submit', onAddItem);
+    el('closeDayBtn').addEventListener('click', onCloseDay);
+
+    // night check view
     el('checkBtn').addEventListener('click', onCheck);
+    el('nightBackBtn').addEventListener('click', function () { showView('main'); });
+
+    // settings view
+    el('addItemForm').addEventListener('submit', onAddItem);
+    el('settingsBackBtn').addEventListener('click', function () { showView('main'); });
 
     registerSW();
   }

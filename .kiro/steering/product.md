@@ -16,6 +16,11 @@ Telangana:
 - **AI explains** the day in 3 short lines of Telugu or English (when the gap probably happened, best hour, best item), and the
   summary can be shared to WhatsApp.
 
+## UX shape (founder decision, 12 Nov 2026)
+- Main screen: today's expected cash, big and on top; item tiles; a small Undo. Nothing else.
+- "Close the day" opens a separate night-check screen (UPI, cash, verdict).
+- Editing items lives behind a settings icon, not on the main screen.
+
 ## Users
 Shop owners with a cheap Android phone, UPI QR plus cash, comfortable in Telugu, no time to type at peak hours.
 
@@ -24,4 +29,5 @@ Shop owners with a cheap Android phone, UPI QR plus cash, comfortable in Telugu,
 2. AI output is grounded only in the day's numbers. If AI fails or is offline, the app still counts and shows the gap.
 3. A wrong or unknown item never corrupts the counts; invalid input is rejected with a clear message.
 4. Works offline; data stays on the phone unless the owner asks for the AI summary.
-5. Telugu and English everywhere in the UI.
+5. English by default (understood across Telangana); Telugu stays available behind one toggle.
+6. Calm, uncluttered UX: one main screen, big touch targets, nothing on screen the owner doesn't need at that moment.

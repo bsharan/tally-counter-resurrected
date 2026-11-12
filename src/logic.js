@@ -48,6 +48,8 @@
   }
 
   // Add a single click for itemName to the sale log.
+  // The item's price at this moment is stored in the click record, so a later
+  // price edit never changes the value of earlier sales.
   // Returns a NEW log (immutable). Throws if itemName is not in items.
   function addClick(saleLog, itemName, items, ts) {
     if (!Array.isArray(saleLog)) saleLog = [];
@@ -56,7 +58,7 @@
     if (!found) {
       throw new Error('Unknown item: ' + itemName);
     }
-    return saleLog.concat([{ name: itemName, ts: ts }]);
+    return saleLog.concat([{ name: itemName, price: found.price, ts: ts }]);
   }
 
   // Undo the last click. An empty log stays empty. Returns a NEW log.
@@ -81,13 +83,22 @@
     return counts;
   }
 
-  // Expected cash = sum of (count × price) across every item in items.
+  // Expected cash = sum of each click's stored price.
+  // Clicks created by addClick carry their own price (the price at click time),
+  // so editing an item's price later never changes earlier sales.
+  // For backward compat (old data / test clicks without a price field),
+  // fall back to looking up the item's current price by name.
   function expectedCash(saleLog, items) {
-    const counts = countsFromLog(saleLog);
+    if (!Array.isArray(saleLog)) return 0;
     let total = 0;
-    for (let i = 0; i < items.length; i++) {
-      const c = counts[items[i].name] || 0;
-      total += c * items[i].price;
+    for (let i = 0; i < saleLog.length; i++) {
+      const click = saleLog[i];
+      if (typeof click.price === 'number' && Number.isFinite(click.price)) {
+        total += click.price;
+      } else {
+        const item = items.find(function (it) { return it.name === click.name; });
+        total += item ? item.price : 0;
+      }
     }
     return total;
   }
@@ -129,6 +140,40 @@
     return Array.isArray(saleLog) ? saleLog.length : 0;
   }
 
+  // Remove an item at index. Clicks are NOT touched — past sales keep their
+  // stored price and still count toward expected cash. If items becomes
+  // empty, reset to defaults so the shop always has something to click.
+  // Returns a NEW items array.
+  function removeItem(items, index) {
+    if (!Array.isArray(items) || index < 0 || index >= items.length) {
+      return Array.isArray(items) ? items.slice() : defaultItems();
+    }
+    var next = items.slice();
+    next.splice(index, 1);
+    return next.length === 0 ? defaultItems() : next;
+  }
+
+  // Rename an item from oldName to newName. Updates the name in the items list
+  // AND rewrites the name on matching clicks so the count badge follows.
+  // Stored prices on those clicks are never touched. If newName is invalid or
+  // already exists, returns the inputs unchanged.
+  // Returns { items, saleLog } — both NEW arrays.
+  function renameItem(items, saleLog, oldName, newName) {
+    var v = validateItem({ name: newName, price: 0 });
+    if (!v) return { items: items, saleLog: saleLog };
+    var cleanName = v.name;
+    // reject if the new name already exists (on a different item)
+    var clash = items.some(function (it) { return it.name === cleanName && it.name !== oldName; });
+    if (clash) return { items: items, saleLog: saleLog };
+    var newItems = items.map(function (it) {
+      return it.name === oldName ? { name: cleanName, price: it.price } : it;
+    });
+    var newLog = saleLog.map(function (c) {
+      return c.name === oldName ? { name: cleanName, price: c.price, ts: c.ts } : c;
+    });
+    return { items: newItems, saleLog: newLog };
+  }
+
   // Returns today's date as a 'YYYY-MM-DD' string, for day-rollover detection.
   function todayKey(now) {
     const d = now ? new Date(now) : new Date();
@@ -145,6 +190,8 @@
     addClick: addClick,
     undoLast: undoLast,
     clearLog: clearLog,
+    removeItem: removeItem,
+    renameItem: renameItem,
     countsFromLog: countsFromLog,
     expectedCash: expectedCash,
     toNumber: toNumber,
