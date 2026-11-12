@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7a2e1e">
+  <meta name="description" content="One-click tally counter with night-check for bill-less small shops.">
+  <title>Tally Counter</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #f4ede4;
+      --ink: #2b1d14;
+      --ink-soft: #6b5645;
+      --accent: #7a2e1e;
+      --accent-soft: #a8553f;
+      --card: #fffaf3;
+      --line: #e0d2c2;
+      --ok: #2e7d32;
+      --short: #c62828;
+      --over: #ef6c00;
+      --radius: 14px;
+      --tap: 56px;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg); color: var(--ink);
+      font-family: 'Noto Sans', 'Noto Sans Telugu', system-ui, sans-serif;
+      font-size: 17px; line-height: 1.45;
+    }
+    body { max-width: 560px; margin: 0 auto; min-height: 100vh; }
+
+    /* Header */
+    .app-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; padding-top: max(14px, env(safe-area-inset-top));
+      background: var(--accent); color: #fff;
+    }
+    .brand { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .app-title { font-size: 1.25rem; margin: 0; font-weight: 700; }
+    .app-subtitle { font-size: 0.8rem; opacity: 0.85; }
+    .lang-toggle {
+      background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4);
+      color: #fff; border-radius: 999px; padding: 6px 16px;
+      font-size: 0.85rem; font-weight: 600; min-height: 36px; cursor: pointer;
+    }
+    .lang-toggle:active { background: rgba(255,255,255,0.3); }
+
+    main { padding: 14px 16px 48px; }
+
+    /* Expected cash bar */
+    .expected-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 14px 18px; margin-bottom: 14px;
+    }
+    .expected-label { font-size: 0.9rem; color: var(--ink-soft); }
+    .expected-amount { font-size: 1.9rem; font-weight: 700; color: var(--accent); }
+
+    /* Section heading */
+    .section-heading { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 18px 0 8px; }
+
+    /* Item buttons grid */
+    .item-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .item-btn {
+      display: flex; flex-direction: column; align-items: stretch;
+      background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
+      padding: 16px 12px; min-height: var(--tap); cursor: pointer;
+      font-family: inherit; text-align: center; color: var(--ink);
+      transition: border-color 0.1s, transform 0.05s;
+    }
+    .item-btn:active { transform: scale(0.97); border-color: var(--accent); }
+    .item-name { font-size: 1.15rem; font-weight: 600; }
+    .item-price { font-size: 0.85rem; color: var(--ink-soft); }
+    .item-count {
+      margin-top: 8px; align-self: center;
+      background: var(--accent); color: #fff; border-radius: 999px;
+      min-width: 28px; padding: 2px 10px; font-weight: 700; font-size: 0.95rem;
+    }
+
+    /* Action row */
+    .action-row {
+      display: flex; align-items: center; gap: 10px; margin: 16px 0 6px; flex-wrap: wrap;
+    }
+    .undo-btn {
+      flex: 1; min-width: 0; min-height: 48px; border-radius: var(--radius);
+      border: 2px solid var(--accent-soft); background: transparent; color: var(--accent);
+      font-weight: 600; font-size: 1rem; cursor: pointer; font-family: inherit;
+    }
+    .undo-btn:active { background: rgba(122,46,30,0.08); }
+    .undo-btn:disabled { opacity: 0.4; }
+    .clear-btn {
+      min-height: 48px; border-radius: var(--radius); border: 2px solid var(--line);
+      background: transparent; color: var(--ink-soft); font-size: 0.9rem; cursor: pointer;
+      font-family: inherit; padding: 0 16px;
+    }
+    .clear-btn:active { background: rgba(0,0,0,0.04); }
+    .sales-summary { font-size: 0.85rem; color: var(--ink-soft); flex-basis: 100%; margin-top: 4px; }
+
+    /* Edit items */
+    .edit-toggle {
+      width: 100%; min-height: 46px; margin-top: 16px; border-radius: var(--radius);
+      border: 2px dashed var(--line); background: transparent; color: var(--ink-soft);
+      font-size: 0.95rem; cursor: pointer; font-family: inherit;
+    }
+    .edit-panel { margin-top: 12px; }
+    .edit-list { display: flex; flex-direction: column; gap: 8px; }
+    .edit-row {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+    }
+    .edit-row input { flex: 1; min-width: 80px; }
+    .edit-row .remove-btn {
+      border: none; background: var(--short); color: #fff; border-radius: 8px;
+      padding: 6px 12px; font-size: 0.85rem; cursor: pointer; font-family: inherit;
+    }
+    .add-item-form {
+      display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+    }
+    .add-item-form .input { flex: 1; min-width: 90px; }
+
+    /* Inputs & buttons */
+    .input {
+      min-height: 44px; border-radius: 10px; border: 1px solid var(--line);
+      background: #fff; padding: 8px 12px; font-size: 1rem; font-family: inherit; color: var(--ink);
+    }
+    .input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent-soft); }
+    .input-price { max-width: 100px; }
+    .btn-primary {
+      min-height: 46px; border-radius: 10px; border: none; background: var(--accent);
+      color: #fff; font-weight: 600; font-size: 0.95rem; cursor: pointer; font-family: inherit;
+      padding: 0 18px;
+    }
+    .btn-primary:active { background: var(--accent-soft); }
+
+    /* Night check */
+    .night-check { margin-top: 24px; }
+    .nc-grid { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+    .nc-field label { display: block; font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 4px; }
+    .nc-field .input { width: 100%; }
+    .nc-field .rupee { display: flex; align-items: center; gap: 6px; }
+    .nc-field .rupee .input { flex: 1; }
+
+    /* Verdict */
+    .verdict {
+      background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
+      padding: 16px; margin-top: 14px;
+    }
+    .verdict-status { font-size: 1.3rem; font-weight: 700; margin-bottom: 10px; }
+    .verdict-status.ok { color: var(--ok); }
+    .verdict-status.short { color: var(--short); }
+    .verdict-status.over { color: var(--over); }
+    .verdict-grid { display: flex; flex-direction: column; gap: 6px; font-size: 0.95rem; }
+    .verdict-grid .row { display: flex; justify-content: space-between; gap: 12px; }
+    .verdict-grid .row .label { color: var(--ink-soft); }
+    .verdict-grid .row .val { font-weight: 600; }
+
+    footer {
+      text-align: center; font-size: 0.72rem; color: var(--ink-soft);
+      padding: 16px; opacity: 0.7;
+    }
+
+    @media (max-width: 360px) { body { font-size: 16px; } .item-grid { gap: 10px; } }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1 id="title" class="app-title"></h1>
+      <span id="subtitle" class="app-subtitle"></span>
+    </div>
+    <button id="langToggle" class="lang-toggle" type="button" aria-label="Switch language"></button>
+  </header>
+
+  <main>
+    <!-- Running expected cash -->
+    <div class="expected-bar">
+      <span id="expectedLabel" class="expected-label"></span>
+      <span id="expectedAmount" class="expected-amount">&#8377;0</span>
+    </div>
+
+    <!-- Item buttons -->
+    <h2 id="itemsHeading" class="section-heading"></h2>
+    <div id="itemGrid" class="item-grid" role="group" aria-labelledby="itemsHeading"></div>
+
+    <!-- Undo / clear / summary -->
+    <div class="action-row">
+      <button id="undoBtn" class="undo-btn" type="button"></button>
+      <button id="clearBtn" class="clear-btn" type="button"></button>
+      <span id="salesSummary" class="sales-summary"></span>
+    </div>
+
+    <!-- Edit items -->
+    <button id="editToggle" class="edit-toggle" type="button"></button>
+    <div id="editPanel" class="edit-panel" hidden>
+      <div id="editList" class="edit-list"></div>
+      <form id="addItemForm" class="add-item-form">
+        <input id="newItemName" class="input" type="text" autocomplete="off">
+        <input id="newItemPrice" class="input input-price" type="number" min="0" step="1" inputmode="numeric">
+        <button id="addItemBtn" class="btn-primary" type="submit"></button>
+      </form>
+    </div>
+
+    <!-- Night check -->
+    <section class="night-check">
+      <h2 id="nightCheckTitle" class="section-heading"></h2>
+      <div class="nc-grid">
+        <div class="nc-field">
+          <label id="upiLabel" for="upiTotal"></label>
+          <div class="rupee"><span>&#8377;</span><input id="upiTotal" class="input" type="number" min="0" step="0.01" inputmode="decimal"></div>
+        </div>
+        <div class="nc-field">
+          <label id="cashLabel" for="cashTotal"></label>
+          <div class="rupee"><span>&#8377;</span><input id="cashTotal" class="input" type="number" min="0" step="0.01" inputmode="decimal"></div>
+        </div>
+      </div>
+      <button id="checkBtn" class="btn-primary" type="button"></button>
+      <div id="verdictDisplay" class="verdict" hidden></div>
+    </section>
+  </main>
+
+  <footer>Tally Counter, Resurrected &middot; MIT</footer>
+
+  <script src="src/logic.js"></script>
+  <script src="src/i18n.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>

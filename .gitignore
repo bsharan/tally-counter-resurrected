@@ -1,0 +1,13 @@
+# Dependencies / build artifacts (none needed — this is a build-less PWA)
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log
+
+# Local env (if ever added)
+.env
+.env.local
+
+# NOTE: .kiro/ is NEVER ignored — it holds steering, specs, and hooks.

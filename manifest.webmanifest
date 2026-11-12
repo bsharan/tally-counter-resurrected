@@ -1,0 +1,21 @@
+{
+  "name": "Tally Counter, Resurrected",
+  "short_name": "Tally Counter",
+  "description": "One-click tally counter with night-check for bill-less small shops.",
+  "lang": "te",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4ede4",
+  "theme_color": "#7a2e1e",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
